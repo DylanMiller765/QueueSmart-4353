@@ -4,38 +4,40 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+type RegisterErrors = {
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+};
+
 export default function RegisterPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<{
-    email?: string;
-    password?: string;
-    confirmPassword?: string;
-  }>({});
+  const [errors, setErrors] = useState<RegisterErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
   function validate() {
-    const newErrors: {
-      email?: string;
-      password?: string;
-      confirmPassword?: string;
-    } = {};
+    const newErrors: RegisterErrors = {};
 
+    // email
     if (!email.trim()) {
       newErrors.email = "Please enter your email address.";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = "Please enter a valid email address.";
     }
 
+    // password
     if (!password) {
-      newErrors.password = "Please create a password.";
+      newErrors.password = "Please enter a password.";
     } else if (password.length < 6) {
       newErrors.password = "Password must be at least 6 characters.";
     }
 
+    // confirm password
     if (!confirmPassword) {
       newErrors.confirmPassword = "Please confirm your password.";
     } else if (confirmPassword !== password) {
@@ -49,11 +51,15 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+
     setIsLoading(true);
-    // fake delay, no real backend yet
+
+    // fake API call
     await new Promise((r) => setTimeout(r, 600));
-    // after "registration", send user to dashboard
+
+    // after "registering", send user to dashboard
     router.push("/dashboard");
+
     setIsLoading(false);
   }
 
@@ -63,7 +69,7 @@ export default function RegisterPage() {
         className="w-full max-w-[340px] px-6"
         style={{ animation: "fadeUp 0.5s ease-out both" }}
       >
-        {/* Mark */}
+        {/* mark */}
         <div className="mb-8 flex justify-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full border-[1.5px] border-[#d2d2d7]">
             <span className="text-[22px] font-semibold tracking-tight text-foreground">
@@ -72,7 +78,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* Header */}
+        {/* header */}
         <h1 className="text-center text-[28px] font-semibold leading-tight tracking-tight text-foreground">
           Create account
         </h1>
@@ -80,10 +86,10 @@ export default function RegisterPage() {
           to get started with QueueSmart
         </p>
 
-        {/* Form */}
+        {/* form */}
         <form onSubmit={handleSubmit} noValidate className="mt-8">
           <div className="space-y-3">
-            {/* Email */}
+            {/* email */}
             <div>
               <input
                 type="email"
@@ -91,7 +97,7 @@ export default function RegisterPage() {
                 onChange={(e) => {
                   setEmail(e.target.value);
                   if (errors.email)
-                    setErrors((p) => ({ ...p, email: undefined }));
+                    setErrors((prev) => ({ ...prev, email: undefined }));
                 }}
                 placeholder="Email"
                 autoComplete="email"
@@ -107,7 +113,7 @@ export default function RegisterPage() {
               )}
             </div>
 
-            {/* Password */}
+            {/* password */}
             <div>
               <div className="relative">
                 <input
@@ -116,7 +122,7 @@ export default function RegisterPage() {
                   onChange={(e) => {
                     setPassword(e.target.value);
                     if (errors.password)
-                      setErrors((p) => ({ ...p, password: undefined }));
+                      setErrors((prev) => ({ ...prev, password: undefined }));
                   }}
                   placeholder="Password"
                   autoComplete="new-password"
@@ -128,7 +134,7 @@ export default function RegisterPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword((v) => !v)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] font-medium text-accent transition-colors hover:text-accent-hover"
                 >
                   {showPassword ? "Hide" : "Show"}
@@ -141,7 +147,7 @@ export default function RegisterPage() {
               )}
             </div>
 
-            {/* Confirm password */}
+            {/* confirm password */}
             <div>
               <input
                 type={showPassword ? "text" : "password"}
@@ -149,7 +155,10 @@ export default function RegisterPage() {
                 onChange={(e) => {
                   setConfirmPassword(e.target.value);
                   if (errors.confirmPassword)
-                    setErrors((p) => ({ ...p, confirmPassword: undefined }));
+                    setErrors((prev) => ({
+                      ...prev,
+                      confirmPassword: undefined,
+                    }));
                 }}
                 placeholder="Confirm password"
                 autoComplete="new-password"
@@ -176,16 +185,19 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        {/* Links */}
-        <div className="mt-6 flex items-center justify-center text-[13px]">
-          <span className="text-muted">Already have an account?</span>
-          <Link
-            href="/login"
-            className="ml-2 text-accent hover:underline font-medium"
-          >
+        {/* links */}
+        <div className="mt-6 text-center text-[13px]">
+          <span className="text-muted">Already have an account? </span>
+          <Link href="/login" className="text-accent hover:underline">
             Sign in
           </Link>
         </div>
+
+        {/* demo hint */}
+        <p className="mt-12 text-center text-[12px] leading-relaxed text-muted/60">
+          Demo — this screen only simulates account creation for the UI design
+          assignment.
+        </p>
       </div>
     </div>
   );
