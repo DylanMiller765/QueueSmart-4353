@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Bell } from "lucide-react";
 
 export default function QueueStatusPage() {
   const router = useRouter();
@@ -20,7 +22,54 @@ export default function QueueStatusPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] px-6 py-10">
+    <div className="min-h-screen bg-[#f5f5f7]">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 border-b border-black/[0.08] bg-white/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-12 max-w-[1280px] items-center justify-between px-8">
+          <div className="flex items-center gap-8">
+            <Link
+              href="/dashboard"
+              className="text-[15px] font-semibold tracking-tight text-foreground"
+            >
+              QueueSmart
+            </Link>
+            <div className="hidden items-center gap-6 sm:flex">
+              <Link
+                href="/dashboard"
+                className="text-[13px] text-muted transition-colors hover:text-foreground"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/join-queue"
+                className="text-[13px] text-muted transition-colors hover:text-foreground"
+              >
+                Services
+              </Link>
+              <Link
+                href="/history"
+                className="text-[13px] text-muted transition-colors hover:text-foreground"
+              >
+                History
+              </Link>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button className="relative text-muted transition-colors hover:text-foreground">
+              <Bell size={18} strokeWidth={1.5} />
+            </button>
+            <button
+              onClick={() => router.push("/login")}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e8e8ed] text-[11px] font-semibold text-muted"
+            >
+              DM
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="px-6 py-10">
       <div className="mx-auto w-full max-w-5xl">
         <h1 className="text-[34px] font-semibold tracking-tight text-foreground">
           Queue Status
@@ -116,6 +165,7 @@ export default function QueueStatusPage() {
         <p className="mt-10 text-center text-[12px] leading-relaxed text-muted/60">
           Demo — queue position and status are mocked for Assignment 2.
         </p>
+      </div>
       </div>
     </div>
   );
