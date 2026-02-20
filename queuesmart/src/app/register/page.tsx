@@ -57,7 +57,7 @@ export default function RegisterPage() {
     // fake API call
     await new Promise((r) => setTimeout(r, 600));
 
-    // after "registering", send user to dashboard
+    // after "registering", send user to Join Queue screen (A2 UI flow)
     router.push("/user/join-queue");
 
     setIsLoading(false);
@@ -96,8 +96,9 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  if (errors.email)
+                  if (errors.email) {
                     setErrors((prev) => ({ ...prev, email: undefined }));
+                  }
                 }}
                 placeholder="Email"
                 autoComplete="email"
@@ -120,9 +121,29 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (errors.password)
+                    const newPass = e.target.value;
+                    setPassword(newPass);
+
+                    // clear password error if they start typing
+                    if (errors.password) {
                       setErrors((prev) => ({ ...prev, password: undefined }));
+                    }
+
+                    // live confirm-password mismatch check (prevents "sticky" error)
+                    if (confirmPassword && confirmPassword !== newPass) {
+                      setErrors((prev) => ({
+                        ...prev,
+                        confirmPassword: "Passwords do not match.",
+                      }));
+                    } else {
+                      // if it matches (or confirm is empty), clear mismatch
+                      if (errors.confirmPassword === "Passwords do not match.") {
+                        setErrors((prev) => ({
+                          ...prev,
+                          confirmPassword: undefined,
+                        }));
+                      }
+                    }
                   }}
                   placeholder="Password"
                   autoComplete="new-password"
@@ -153,12 +174,24 @@ export default function RegisterPage() {
                 type={showPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  if (errors.confirmPassword)
+                  const newConfirm = e.target.value;
+                  setConfirmPassword(newConfirm);
+
+                  // clear confirm error as they type
+                  if (errors.confirmPassword) {
                     setErrors((prev) => ({
                       ...prev,
                       confirmPassword: undefined,
                     }));
+                  }
+
+                  // if they already typed password, check mismatch live
+                  if (password && newConfirm && newConfirm !== password) {
+                    setErrors((prev) => ({
+                      ...prev,
+                      confirmPassword: "Passwords do not match.",
+                    }));
+                  }
                 }}
                 placeholder="Confirm password"
                 autoComplete="new-password"
