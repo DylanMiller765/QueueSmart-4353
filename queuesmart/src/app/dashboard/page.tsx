@@ -68,12 +68,12 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="relative text-muted transition-colors hover:text-foreground">
-              <Bell size={18} strokeWidth={1.5} />
-              {unreadCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-error" />
-              )}
-            </button>
+          <Link href="/notifications" className="relative text-muted transition-colors hover:text-foreground">
+            <Bell size={18} strokeWidth={1.5} />
+          {unreadCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-error" />
+            )}
+          </Link>
             <button
               onClick={() => router.push("/login")}
               className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e8e8ed] text-[11px] font-semibold text-muted"
