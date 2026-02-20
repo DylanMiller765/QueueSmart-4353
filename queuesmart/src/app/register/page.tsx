@@ -58,7 +58,7 @@ export default function RegisterPage() {
     await new Promise((r) => setTimeout(r, 600));
 
     // after "registering", send user to dashboard
-    router.push("/dashboard");
+    router.push("/user/join-queue");
 
     setIsLoading(false);
   }
