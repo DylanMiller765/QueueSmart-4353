@@ -18,17 +18,16 @@ const MOCK_SERVICES: Service[] = [
 
 export default function JoinQueuePage() {
   const router = useRouter();
-  const [banner, setBanner] = useState<string>("");
+  const [banner, setBanner] = useState("");
+  const [joined, setJoined] = useState(false);
 
   function handleJoin(service: Service) {
-    // UI-only simulation
     setBanner(`You joined the queue for ${service.name}.`);
+    setJoined(true);
+  }
 
-    // Option A: navigate to Queue Status (recommended)
-    // We'll pass the service in the URL for mock purposes
-    setTimeout(() => {
-      router.push(`/user/queue-status?service=${encodeURIComponent(service.name)}&pos=3&eta=12`);
-    }, 450);
+  function goToStatus() {
+    router.push("/queue-status");
   }
 
   return (
@@ -42,8 +41,17 @@ export default function JoinQueuePage() {
         </p>
 
         {banner && (
-          <div className="mt-6 rounded-xl border border-[#d2d2d7] bg-white px-4 py-3 text-[14px] text-foreground">
-            ✅ {banner}
+          <div className="mt-6 rounded-xl border border-[#d2d2d7] bg-white px-4 py-3 text-[14px] text-foreground flex items-center justify-between">
+            <span>✅ {banner}</span>
+
+            {joined && (
+              <button
+                onClick={goToStatus}
+                className="ml-4 rounded-full bg-accent px-4 py-2 text-[13px] font-medium text-white hover:bg-accent-hover transition-all"
+              >
+                View Status
+              </button>
+            )}
           </div>
         )}
 
@@ -51,10 +59,12 @@ export default function JoinQueuePage() {
           {MOCK_SERVICES.map((s) => (
             <div
               key={s.id}
-              className="flex items-center justify-between rounded-2xl border border-[#e5e5ea] bg-white p-5 shadow-[0_8px_25px_rgba(0,0,0,0.04)]"
+              className="flex items-center justify-between rounded-2xl border border-[#e5e5ea] bg-white p-5 shadow-[0_8px_25px_rgba(0,0,0,0.04)] hover:shadow-md transition-all"
             >
               <div>
-                <h2 className="text-[18px] font-semibold text-foreground">{s.name}</h2>
+                <h2 className="text-[18px] font-semibold text-foreground">
+                  {s.name}
+                </h2>
                 <p className="mt-1 text-[14px] text-muted">
                   {s.queueCount} in queue · {s.waitText}
                 </p>
