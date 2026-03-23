@@ -44,7 +44,7 @@ export default function LoginPage() {
     }
 
     router.push(
-      result.user!.role === "admin" ? "/admin/dashboard" : "/dashboard"
+      result.user!.role === "admin" ? "/admin/admin-dashboard" : "/dashboard"
     );
   }
 
