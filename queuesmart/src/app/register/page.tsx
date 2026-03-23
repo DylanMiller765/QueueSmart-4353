@@ -3,65 +3,72 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { register } from "@/lib/auth";
+import {
+  validateEmail,
+  validatePassword,
+  validateName,
+  validateConfirmPassword,
+} from "@/lib/validations";
 
-type RegisterErrors = {
+interface FormErrors {
+  name?: string;
   email?: string;
   password?: string;
   confirmPassword?: string;
-};
+  general?: string;
+}
 
 export default function RegisterPage() {
   const router = useRouter();
-
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<RegisterErrors>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  function validate() {
-    const newErrors: RegisterErrors = {};
-
-    // email
-    if (!email.trim()) {
-      newErrors.email = "Please enter your email address.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Please enter a valid email address.";
-    }
-
-    // password
-    if (!password) {
-      newErrors.password = "Please enter a password.";
-    } else if (password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters.";
-    }
-
-    // confirm password
-    if (!confirmPassword) {
-      newErrors.confirmPassword = "Please confirm your password.";
-    } else if (confirmPassword !== password) {
-      newErrors.confirmPassword = "Passwords do not match.";
-    }
-
+  function validate(): boolean {
+    const newErrors: FormErrors = {};
+    const nameErr = validateName(name);
+    if (nameErr) newErrors.name = nameErr;
+    const emailErr = validateEmail(email);
+    if (emailErr) newErrors.email = emailErr;
+    const passErr = validatePassword(password);
+    if (passErr) newErrors.password = passErr;
+    const confirmErr = validateConfirmPassword(password, confirmPassword);
+    if (confirmErr) newErrors.confirmPassword = confirmErr;
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  }
+
+  function clearError(field: keyof FormErrors) {
+    if (errors[field]) setErrors((p) => ({ ...p, [field]: undefined }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
-
     setIsLoading(true);
+    await new Promise((r) => setTimeout(r, 400));
 
-    // fake API call
-    await new Promise((r) => setTimeout(r, 600));
+    const result = register(name, email, password);
+    if (!result.success) {
+      setErrors({ general: result.error });
+      setIsLoading(false);
+      return;
+    }
 
-    // after "registering", send user to Join Queue screen (A2 UI flow)
-    router.push("/user/join-queue");
-
-    setIsLoading(false);
+    router.push("/dashboard");
   }
+
+  const inputClass = (field: keyof FormErrors) =>
+    `w-full rounded-xl bg-[#f5f5f7] px-4 py-[13px] text-[17px] text-foreground placeholder:text-[#86868b]/50 border-2 transition-all duration-200 ${
+      errors[field]
+        ? "border-error bg-white"
+        : "border-transparent focus:border-accent focus:bg-white"
+    }`;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white">
@@ -86,9 +93,35 @@ export default function RegisterPage() {
           to get started with QueueSmart
         </p>
 
+        {/* general error */}
+        {errors.general && (
+          <div className="mt-4 rounded-xl bg-error/10 px-4 py-3 text-[14px] text-error">
+            {errors.general}
+          </div>
+        )}
+
         {/* form */}
         <form onSubmit={handleSubmit} noValidate className="mt-8">
           <div className="space-y-3">
+            {/* name */}
+            <div>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  clearError("name");
+                }}
+                placeholder="Full name"
+                autoComplete="name"
+                autoFocus
+                className={inputClass("name")}
+              />
+              {errors.name && (
+                <p className="mt-1.5 text-[13px] text-error">{errors.name}</p>
+              )}
+            </div>
+
             {/* email */}
             <div>
               <input
@@ -96,18 +129,11 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  if (errors.email) {
-                    setErrors((prev) => ({ ...prev, email: undefined }));
-                  }
+                  clearError("email");
                 }}
                 placeholder="Email"
                 autoComplete="email"
-                autoFocus
-                className={`w-full rounded-xl bg-[#f5f5f7] px-4 py-[13px] text-[17px] text-foreground placeholder:text-[#86868b]/50 border-2 transition-all duration-200 ${
-                  errors.email
-                    ? "border-error bg-white"
-                    : "border-transparent focus:border-accent focus:bg-white"
-                }`}
+                className={inputClass("email")}
               />
               {errors.email && (
                 <p className="mt-1.5 text-[13px] text-error">{errors.email}</p>
@@ -121,37 +147,12 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => {
-                    const newPass = e.target.value;
-                    setPassword(newPass);
-
-                    // clear password error if they start typing
-                    if (errors.password) {
-                      setErrors((prev) => ({ ...prev, password: undefined }));
-                    }
-
-                    // live confirm-password mismatch check (prevents "sticky" error)
-                    if (confirmPassword && confirmPassword !== newPass) {
-                      setErrors((prev) => ({
-                        ...prev,
-                        confirmPassword: "Passwords do not match.",
-                      }));
-                    } else {
-                      // if it matches (or confirm is empty), clear mismatch
-                      if (errors.confirmPassword === "Passwords do not match.") {
-                        setErrors((prev) => ({
-                          ...prev,
-                          confirmPassword: undefined,
-                        }));
-                      }
-                    }
+                    setPassword(e.target.value);
+                    clearError("password");
                   }}
                   placeholder="Password"
                   autoComplete="new-password"
-                  className={`w-full rounded-xl bg-[#f5f5f7] px-4 py-[13px] pr-16 text-[17px] text-foreground placeholder:text-[#86868b]/50 border-2 transition-all duration-200 ${
-                    errors.password
-                      ? "border-error bg-white"
-                      : "border-transparent focus:border-accent focus:bg-white"
-                  }`}
+                  className={`${inputClass("password")} pr-16`}
                 />
                 <button
                   type="button"
@@ -174,32 +175,12 @@ export default function RegisterPage() {
                 type={showPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => {
-                  const newConfirm = e.target.value;
-                  setConfirmPassword(newConfirm);
-
-                  // clear confirm error as they type
-                  if (errors.confirmPassword) {
-                    setErrors((prev) => ({
-                      ...prev,
-                      confirmPassword: undefined,
-                    }));
-                  }
-
-                  // if they already typed password, check mismatch live
-                  if (password && newConfirm && newConfirm !== password) {
-                    setErrors((prev) => ({
-                      ...prev,
-                      confirmPassword: "Passwords do not match.",
-                    }));
-                  }
+                  setConfirmPassword(e.target.value);
+                  clearError("confirmPassword");
                 }}
                 placeholder="Confirm password"
                 autoComplete="new-password"
-                className={`w-full rounded-xl bg-[#f5f5f7] px-4 py-[13px] text-[17px] text-foreground placeholder:text-[#86868b]/50 border-2 transition-all duration-200 ${
-                  errors.confirmPassword
-                    ? "border-error bg-white"
-                    : "border-transparent focus:border-accent focus:bg-white"
-                }`}
+                className={inputClass("confirmPassword")}
               />
               {errors.confirmPassword && (
                 <p className="mt-1.5 text-[13px] text-error">
@@ -214,7 +195,7 @@ export default function RegisterPage() {
             disabled={isLoading}
             className="mt-6 w-full rounded-full bg-accent py-[13px] text-[17px] font-medium text-white transition-all duration-200 hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? "Creating account…" : "Create Account"}
+            {isLoading ? "Creating account\u2026" : "Create Account"}
           </button>
         </form>
 
@@ -225,12 +206,6 @@ export default function RegisterPage() {
             Sign in
           </Link>
         </div>
-
-        {/* demo hint */}
-        <p className="mt-12 text-center text-[12px] leading-relaxed text-muted/60">
-          Demo — this screen only simulates account creation for the UI design
-          assignment.
-        </p>
       </div>
     </div>
   );

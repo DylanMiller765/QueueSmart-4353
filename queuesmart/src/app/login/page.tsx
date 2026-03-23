@@ -3,29 +3,29 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { login } from "@/lib/auth";
+import { validateEmail, validatePassword } from "@/lib/validations";
+
+interface FormErrors {
+  email?: string;
+  password?: string;
+  general?: string;
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {}
-  );
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  function validate() {
-    const newErrors: { email?: string; password?: string } = {};
-    if (!email.trim()) {
-      newErrors.email = "Please enter your email address.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Please enter a valid email address.";
-    }
-    if (!password) {
-      newErrors.password = "Please enter your password.";
-    } else if (password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters.";
-    }
+  function validate(): boolean {
+    const newErrors: FormErrors = {};
+    const emailErr = validateEmail(email);
+    if (emailErr) newErrors.email = emailErr;
+    const passErr = validatePassword(password);
+    if (passErr) newErrors.password = passErr;
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -34,11 +34,23 @@ export default function LoginPage() {
     e.preventDefault();
     if (!validate()) return;
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 400));
+
+    const result = login(email, password);
+    if (!result.success) {
+      setErrors({ general: result.error });
+      setIsLoading(false);
+      return;
+    }
+
     router.push(
-      email === "admin@queuesmart.com" ? "/admin/dashboard" : "/dashboard"
+      result.user!.role === "admin" ? "/admin/dashboard" : "/dashboard"
     );
-    setIsLoading(false);
+  }
+
+  function clearError(field: keyof FormErrors) {
+    if (errors[field]) setErrors((p) => ({ ...p, [field]: undefined }));
+    if (errors.general) setErrors((p) => ({ ...p, general: undefined }));
   }
 
   return (
@@ -64,6 +76,13 @@ export default function LoginPage() {
           to continue to QueueSmart
         </p>
 
+        {/* General error */}
+        {errors.general && (
+          <div className="mt-4 rounded-xl bg-error/10 px-4 py-3 text-[14px] text-error">
+            {errors.general}
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} noValidate className="mt-8">
           <div className="space-y-3">
@@ -73,8 +92,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  if (errors.email)
-                    setErrors((p) => ({ ...p, email: undefined }));
+                  clearError("email");
                 }}
                 placeholder="Email"
                 autoComplete="email"
@@ -97,8 +115,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    if (errors.password)
-                      setErrors((p) => ({ ...p, password: undefined }));
+                    clearError("password");
                   }}
                   placeholder="Password"
                   autoComplete="current-password"
@@ -146,7 +163,7 @@ export default function LoginPage() {
 
         {/* Demo hint */}
         <p className="mt-12 text-center text-[12px] leading-relaxed text-muted/60">
-          Demo — use any email to sign in, or admin@queuesmart.com for admin.
+          Demo — admin@queuesmart.com / admin123 or user@queuesmart.com / user123
         </p>
       </div>
     </div>
