@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronRight, Bell } from "lucide-react";
 
@@ -12,6 +12,44 @@ const initialServices = [
 
 export default function AdminDashboard() {
   const [services, setServices] = useState(initialServices);
+  const [waitTimes, setWaitTimes] = useState<Record<number, number>>({});
+  const [notifications, setNotifications] = useState<{ id: string; title: string; message: string }[]>([]);
+  const [history, setHistory] = useState<{ id: string; serviceName: string; date: string; status: string; waitTime: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Fetch wait times for each service
+        const waitTimeResults: Record<number, number> = {};
+        await Promise.all(
+          initialServices.map(async (s) => {
+            const res = await fetch(`/api/wait-time?position=${s.queueLength}&duration=${s.duration}`);
+            const data = await res.json();
+            waitTimeResults[s.id] = data.estimatedWaitMinutes;
+          })
+        );
+        setWaitTimes(waitTimeResults);
+
+        // Fetch notifications
+        const notifRes = await fetch("/api/notifications?userId=admin");
+        const notifData = await notifRes.json();
+        setNotifications(notifData.notifications ?? []);
+
+        // Fetch history
+        const histRes = await fetch("/api/history?userId=admin");
+        const histData = await histRes.json();
+        setHistory(histData.history ?? []);
+
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
 
   const toggleQueue = (id: number) => {
     setServices(services.map(s => s.id === id ? { ...s, open: !s.open } : s));
@@ -77,7 +115,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Services Table */}
-        <div className="rounded-2xl bg-white p-8" style={{ animation: "fadeUp 0.5s ease-out 0.1s both" }}>
+        <div className="rounded-2xl bg-white p-8 mb-6" style={{ animation: "fadeUp 0.5s ease-out 0.1s both" }}>
           <div className="mb-6 flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">All Services</p>
             <Link href="/admin/service-management"
@@ -92,7 +130,9 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-4">
                   <div>
                     <p className="text-[14px] font-medium text-foreground">{s.name}</p>
-                    <p className="mt-0.5 text-[12px] text-muted">{s.queueLength} waiting · ~{s.duration} min</p>
+                    <p className="mt-0.5 text-[12px] text-muted">
+                      {s.queueLength} waiting · ~{loading ? "..." : waitTimes[s.id]} min wait
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -120,6 +160,53 @@ export default function AdminDashboard() {
             ))}
           </div>
         </div>
+
+        {/* Notifications */}
+        <div className="grid grid-cols-2 gap-6" style={{ animation: "fadeUp 0.5s ease-out 0.15s both" }}>
+          <div className="rounded-2xl bg-white p-6">
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+              Recent Notifications
+            </p>
+            {loading ? (
+              <p className="text-[13px] text-muted">Loading...</p>
+            ) : notifications.length === 0 ? (
+              <p className="text-[13px] text-muted">No notifications</p>
+            ) : (
+              <div className="divide-y divide-black/[0.06]">
+                {notifications.slice(0, 3).map(n => (
+                  <div key={n.id} className="py-3 first:pt-0 last:pb-0">
+                    <p className="text-[13px] font-medium text-foreground">{n.title}</p>
+                    <p className="mt-0.5 text-[12px] text-muted">{n.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* History */}
+          <div className="rounded-2xl bg-white p-6">
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+              Recent History
+            </p>
+            {loading ? (
+              <p className="text-[13px] text-muted">Loading...</p>
+            ) : history.length === 0 ? (
+              <p className="text-[13px] text-muted">No history</p>
+            ) : (
+              <div className="divide-y divide-black/[0.06]">
+                {history.slice(0, 3).map(h => (
+                  <div key={h.id} className="py-3 first:pt-0 last:pb-0">
+                    <p className="text-[13px] font-medium text-foreground">{h.serviceName}</p>
+                    <p className="mt-0.5 text-[12px] text-muted">
+                      {h.date} · {h.status} · {h.waitTime} min wait
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
       </main>
     </div>
   );
