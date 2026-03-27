@@ -1,55 +1,91 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Bell, ChevronLeft } from "lucide-react";
+import { Service } from "@/lib/serviceStore";
 
-interface Service {
-  id: number;
+type PriorityLevel = "low" | "medium" | "high";
+
+interface FormState {
   name: string;
   description: string;
-  duration: number;
-  priority: string;
+  duration: string;
+  priority: PriorityLevel;
 }
 
-const initialServices: Service[] = [
-  { id: 1, name: "Customer Support", description: "General customer queries and issue resolution", duration: 15, priority: "high" },
-  { id: 2, name: "Technical Assistance", description: "Hardware and software technical support", duration: 30, priority: "medium" },
-  { id: 3, name: "Billing Inquiry", description: "Invoice, payment, and billing questions", duration: 10, priority: "low" },
-];
+interface ValidationError {
+  field: string;
+  message: string;
+}
+
+const EMPTY_FORM: FormState = { name: "", description: "", duration: "", priority: "medium" };
 
 export default function ServiceManagement() {
-  const [services, setServices] = useState<Service[]>(initialServices);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [form, setForm] = useState({ name: "", description: "", duration: "", priority: "medium" });
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [successMsg, setSuccessMsg] = useState("");
 
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!form.name.trim()) e.name = "Service name is required";
-    else if (form.name.length > 100) e.name = "Max 100 characters";
-    if (!form.description.trim()) e.description = "Description is required";
-    if (!form.duration) e.duration = "Duration is required";
-    else if (Number(form.duration) <= 0) e.duration = "Must be a positive number";
-    return e;
-  };
-
-  const handleSubmit = () => {
-    const e = validate();
-    if (Object.keys(e).length > 0) { setErrors(e); return; }
-    if (editingId !== null) {
-      setServices(services.map(s => s.id === editingId ? { ...s, ...form, duration: Number(form.duration) } : s));
-      setSuccessMsg("Service updated successfully!");
-    } else {
-      setServices([...services, { id: Date.now(), ...form, duration: Number(form.duration) }]);
-      setSuccessMsg("Service created successfully!");
+  // ── Fetch from API ──────────────────────────────────────────────────────────
+  async function fetchServices() {
+    setLoading(true);
+    setPageError(null);
+    try {
+      const res = await fetch("/api/services");
+      const json = await res.json();
+      if (json.success) setServices(json.data);
+      else setPageError("Failed to load services.");
+    } catch {
+      setPageError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setForm({ name: "", description: "", duration: "", priority: "medium" });
+  }
+
+  useEffect(() => { fetchServices(); }, []);
+
+  // ── Submit (create or update) ───────────────────────────────────────────────
+  const handleSubmit = async () => {
     setErrors({});
-    setShowForm(false);
-    setEditingId(null);
-    setTimeout(() => setSuccessMsg(""), 3000);
+    const payload = {
+      name: form.name,
+      description: form.description,
+      duration: Number(form.duration),
+      priority: form.priority,
+    };
+
+    const url = editingId !== null ? `/api/services/${editingId}` : "/api/services";
+    const method = editingId !== null ? "PUT" : "POST";
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+
+      if (json.success) {
+        setSuccessMsg(editingId !== null ? "Service updated successfully!" : "Service created successfully!");
+        setTimeout(() => setSuccessMsg(""), 3000);
+        setForm(EMPTY_FORM);
+        setShowForm(false);
+        setEditingId(null);
+        fetchServices();
+      } else if (json.errors) {
+        const mapped: Record<string, string> = {};
+        json.errors.forEach((e: ValidationError) => { mapped[e.field] = e.message; });
+        setErrors(mapped);
+      } else {
+        setPageError(json.error || "Something went wrong.");
+      }
+    } catch {
+      setPageError("Network error. Please try again.");
+    }
   };
 
   const handleEdit = (s: Service) => {
@@ -59,7 +95,18 @@ export default function ServiceManagement() {
     setErrors({});
   };
 
-  const handleDelete = (id: number) => setServices(services.filter(s => s.id !== id));
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this service?")) return;
+    await fetch(`/api/services/${id}`, { method: "DELETE" });
+    fetchServices();
+  };
+
+  const openCreate = () => {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setErrors({});
+    setShowForm(true);
+  };
 
   const priorityColor = (p: string) => {
     if (p === "high") return "bg-red-100 text-red-600";
@@ -98,10 +145,8 @@ export default function ServiceManagement() {
           </Link>
           <div className="flex items-center justify-between">
             <h1 className="text-[32px] font-semibold tracking-tight text-foreground">Service Management</h1>
-            <button
-              onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: "", description: "", duration: "", priority: "medium" }); setErrors({}); }}
-              className="rounded-full bg-accent px-5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-accent-hover"
-            >
+            <button onClick={openCreate}
+              className="rounded-full bg-accent px-5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-accent-hover">
               + Create Service
             </button>
           </div>
@@ -113,9 +158,17 @@ export default function ServiceManagement() {
           </div>
         )}
 
+        {pageError && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-[14px] text-red-600">
+            {pageError}
+          </div>
+        )}
+
         {showForm && (
           <div className="mb-6 rounded-2xl bg-white p-8" style={{ animation: "fadeUp 0.3s ease-out both" }}>
-            <h2 className="mb-6 text-[18px] font-semibold text-foreground">{editingId ? "Edit Service" : "Create New Service"}</h2>
+            <h2 className="mb-6 text-[18px] font-semibold text-foreground">
+              {editingId !== null ? "Edit Service" : "Create New Service"}
+            </h2>
             <div className="grid grid-cols-2 gap-5">
               <div className="col-span-2">
                 <label className="mb-1.5 block text-[12px] font-medium text-muted">Service Name * (max 100 chars)</label>
@@ -132,24 +185,25 @@ export default function ServiceManagement() {
               </div>
               <div>
                 <label className="mb-1.5 block text-[12px] font-medium text-muted">Expected Duration (minutes) *</label>
-                <input type="number" min={1} className={inputClass("duration")} value={form.duration}
+                <input type="number" min={1} max={480} className={inputClass("duration")} value={form.duration}
                   onChange={e => setForm({ ...form, duration: e.target.value })} placeholder="e.g. 15" />
                 {errors.duration && <p className="mt-1 text-[12px] text-red-500">{errors.duration}</p>}
               </div>
               <div>
                 <label className="mb-1.5 block text-[12px] font-medium text-muted">Priority Level *</label>
                 <select className={inputClass("priority")} value={form.priority}
-                  onChange={e => setForm({ ...form, priority: e.target.value })}>
+                  onChange={e => setForm({ ...form, priority: e.target.value as PriorityLevel })}>
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
+                {errors.priority && <p className="mt-1 text-[12px] text-red-500">{errors.priority}</p>}
               </div>
             </div>
             <div className="mt-6 flex gap-3">
               <button onClick={handleSubmit}
                 className="rounded-full bg-accent px-6 py-2.5 text-[14px] font-medium text-white hover:bg-accent-hover">
-                {editingId ? "Update Service" : "Create Service"}
+                {editingId !== null ? "Update Service" : "Create Service"}
               </button>
               <button onClick={() => { setShowForm(false); setErrors({}); }}
                 className="rounded-full border border-black/[0.1] bg-[#f5f5f7] px-6 py-2.5 text-[14px] font-medium text-foreground hover:bg-[#e8e8ed]">
@@ -161,13 +215,24 @@ export default function ServiceManagement() {
 
         <div className="rounded-2xl bg-white p-8" style={{ animation: "fadeUp 0.5s ease-out 0.05s both" }}>
           <p className="mb-6 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">All Services</p>
+          {loading && <p className="text-[14px] text-muted">Loading services…</p>}
+          {!loading && services.length === 0 && (
+            <p className="text-[14px] text-muted">No services yet. Create one above.</p>
+          )}
           <div className="divide-y divide-black/[0.06]">
             {services.map(s => (
               <div key={s.id} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
                 <div>
                   <div className="flex items-center gap-3">
                     <p className="text-[14px] font-medium text-foreground">{s.name}</p>
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${priorityColor(s.priority)}`}>{s.priority}</span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${priorityColor(s.priority)}`}>
+                      {s.priority}
+                    </span>
+                    {!s.isActive && (
+                      <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-400">
+                        Inactive
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 text-[12px] text-muted">{s.description}</p>
                   <p className="mt-0.5 text-[12px] text-muted">⏱ {s.duration} min avg</p>
