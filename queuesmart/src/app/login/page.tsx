@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/auth";
 import { validateEmail, validatePassword } from "@/lib/validations";
 
 interface FormErrors {
@@ -36,16 +35,30 @@ export default function LoginPage() {
     setIsLoading(true);
     await new Promise((r) => setTimeout(r, 400));
 
-    const result = login(email, password);
-    if (!result.success) {
-      setErrors({ general: result.error });
-      setIsLoading(false);
-      return;
-    }
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await res.json();
 
-    router.push(
-      result.user!.role === "admin" ? "/admin/admin-dashboard" : "/dashboard"
-    );
+      if (!result.success) {
+        setErrors({ general: result.error });
+        setIsLoading(false);
+        return;
+      }
+
+      // Store user in localStorage for session persistence
+      localStorage.setItem("queuesmart_user", JSON.stringify(result.user));
+
+      router.push(
+        result.user.role === "admin" ? "/admin/admin-dashboard" : "/dashboard"
+      );
+    } catch {
+      setErrors({ general: "Network error. Please try again." });
+      setIsLoading(false);
+    }
   }
 
   function clearError(field: keyof FormErrors) {

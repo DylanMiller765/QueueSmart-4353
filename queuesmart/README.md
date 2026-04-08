@@ -1,36 +1,130 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QueueSmart
+
+A queue management system built with Next.js, TypeScript, Tailwind CSS, and Supabase.
 
 ## Getting Started
 
-First, run the development server:
+### 1. Install dependencies
+
+```bash
+cd queuesmart
+npm install
+```
+
+### 2. Set up environment variables
+
+Copy the example env file and fill in the Supabase keys (ask Dylan for these):
+
+```bash
+cp .env.local.example .env.local
+```
+
+You need these three values in `.env.local`:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://rxdxlspyipjsrgsttvbi.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<ask Dylan>
+SUPABASE_SERVICE_ROLE_KEY=<ask Dylan>
+```
+
+- `NEXT_PUBLIC_SUPABASE_URL` is the same for everyone (shown above)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are secret keys Dylan will share with you directly
+
+### 3. Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Demo accounts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Admin:** admin@queuesmart.com / admin123
+- **User:** user@queuesmart.com / user123
 
-## Learn More
+## Database (Supabase)
 
-To learn more about Next.js, take a look at the following resources:
+We use Supabase (PostgreSQL) as our database. The project is already linked and migrations are managed via the Supabase CLI.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Current tables (Assignment 4)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Table | Description | Owner |
+|-------|-------------|-------|
+| `user_credentials` | Auth info: email, encrypted password (bcrypt), role | Dylan |
+| `user_profiles` | User details: full name, email, phone, preferences | Dylan |
+| `services` | Services offered (name, description, duration, priority) | **Needs to be created** |
+| `queues` | Active queues for services (status, created date) | **Needs to be created** |
+| `queue_entries` | Users waiting in queue (position, join time, status) | **Needs to be created** |
+| `notifications` | System activity log (message, timestamp, status) | **Needs to be created** |
 
-## Deploy on Vercel
+### How to add a new table
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Create a migration file:
+   ```bash
+   npx supabase migration new your_table_name
+   ```
+   This creates a file in `supabase/migrations/`. Write your SQL there.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. Push to the remote database:
+   ```bash
+   SUPABASE_ACCESS_TOKEN=<ask Dylan for token> npx supabase db push
+   ```
+
+3. Create/update the API route in `src/app/api/` to read/write from the new table.
+
+4. Use `getServiceSupabase()` from `src/lib/supabase.ts` in your API routes to query the database.
+
+### Example: querying Supabase in an API route
+
+```typescript
+import { getServiceSupabase } from "@/lib/supabase";
+
+export async function GET() {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase.from("your_table").select("*");
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ data });
+}
+```
+
+## Project Structure
+
+```
+queuesmart/
+  src/
+    app/
+      api/
+        auth/          # Auth API routes (login, register, me, seed)
+        queue/         # Queue API routes
+        services/      # Services API routes
+      login/           # Login page
+      register/        # Register page
+      dashboard/       # User dashboard
+      admin/           # Admin pages
+    lib/
+      supabase.ts      # Supabase client setup
+      auth.ts          # Legacy in-memory auth (kept for reference)
+      validations.ts   # Input validation helpers
+    types/
+      index.ts         # TypeScript interfaces
+  supabase/
+    migrations/        # SQL migration files
+  __tests__/           # Jest tests
+```
+
+## Running Tests
+
+```bash
+npm test                # Run all tests
+npm run test:coverage   # Run with coverage report
+```
+
+## Tech Stack
+
+- Next.js 16 (App Router)
+- TypeScript
+- Tailwind CSS v4
+- Supabase (PostgreSQL)
+- bcryptjs (password hashing)
+- Jest (testing)

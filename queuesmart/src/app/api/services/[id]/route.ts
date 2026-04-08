@@ -3,11 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceById, updateService, deleteService, validateUpdateInput } from "@/lib/serviceStore";
 import { ServiceUpdateInput } from "@/lib/serviceStore";
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const id = Number(params.id);
+    const { id: rawId } = await params;
+    const id = Number(rawId);
     const service = getServiceById(id);
     if (!service) {
       return NextResponse.json({ success: false, error: `Service ${id} not found.` }, { status: 404 });
@@ -20,7 +21,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    const id = Number(params.id);
+    const { id: rawId } = await params;
+    const id = Number(rawId);
     if (!getServiceById(id)) {
       return NextResponse.json({ success: false, error: `Service ${id} not found.` }, { status: 404 });
     }
@@ -41,7 +43,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const id = Number(params.id);
+    const { id: rawId } = await params;
+    const id = Number(rawId);
     const existing = getServiceById(id);
     if (!existing) {
       return NextResponse.json({ success: false, error: `Service ${id} not found.` }, { status: 404 });
