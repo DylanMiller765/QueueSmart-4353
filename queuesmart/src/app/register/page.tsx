@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { register } from "@/lib/auth";
 import {
   validateEmail,
   validatePassword,
@@ -53,14 +52,28 @@ export default function RegisterPage() {
     setIsLoading(true);
     await new Promise((r) => setTimeout(r, 400));
 
-    const result = register(name, email, password);
-    if (!result.success) {
-      setErrors({ general: result.error });
-      setIsLoading(false);
-      return;
-    }
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const result = await res.json();
 
-    router.push("/dashboard");
+      if (!result.success) {
+        setErrors({ general: result.error });
+        setIsLoading(false);
+        return;
+      }
+
+      // Store user in localStorage for session persistence
+      localStorage.setItem("queuesmart_user", JSON.stringify(result.user));
+
+      router.push("/dashboard");
+    } catch {
+      setErrors({ general: "Network error. Please try again." });
+      setIsLoading(false);
+    }
   }
 
   const inputClass = (field: keyof FormErrors) =>
