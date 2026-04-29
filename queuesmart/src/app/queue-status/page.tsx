@@ -1,20 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell } from "lucide-react";
+
+interface SmartEstimate {
+  estimatedWaitMinutes: number;
+  basedOn: "history" | "default";
+  sampleSize: number;
+  confidence: "high" | "medium" | "low";
+  averagePerPerson: number;
+}
 
 export default function QueueStatusPage() {
   const router = useRouter();
 
   // just mock values for A2
   const position = 3;
-  const serviceName = "Technical Support";
-  const minutesRemaining = 12;
+  const serviceName = "General Consultation";
+  const defaultDuration = 5;
+  const minutesRemaining = position * defaultDuration;
 
   const [status, setStatus] = useState<"Waiting" | "Almost ready">("Waiting");
   const [banner, setBanner] = useState("");
+  const [smart, setSmart] = useState<SmartEstimate | null>(null);
+
+  useEffect(() => {
+    const url = `/api/wait-time/smart?position=${position}&serviceName=${encodeURIComponent(serviceName)}&duration=${defaultDuration}`;
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setSmart(data))
+      .catch(() => {});
+  }, []);
 
   function handleLeaveQueue() {
     setBanner(`You left the queue for ${serviceName}.`);
@@ -100,8 +118,27 @@ export default function QueueStatusPage() {
               </p>
 
               <p className="mt-2 text-[14px] text-muted">
-                About {minutesRemaining} minutes remaining
+                About {smart?.estimatedWaitMinutes ?? minutesRemaining} minutes remaining
               </p>
+
+              {smart && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#e5e5ea] bg-[#f5f5f7] px-3 py-1 text-[12px] text-muted">
+                  <span
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      smart.confidence === "high"
+                        ? "bg-green-500"
+                        : smart.confidence === "medium"
+                        ? "bg-yellow-500"
+                        : "bg-gray-400"
+                    }`}
+                  />
+                  <span>
+                    {smart.basedOn === "history"
+                      ? `Smart estimate · based on ${smart.sampleSize} past visits · ${smart.confidence} confidence`
+                      : "Default estimate · no history yet"}
+                  </span>
+                </div>
+              )}
 
               {/* simple progress bar */}
               <div className="mt-6 h-[6px] w-full max-w-[340px] rounded-full bg-[#e5e5ea]">
@@ -154,7 +191,7 @@ export default function QueueStatusPage() {
                     WAIT
                   </p>
                   <p className="text-[22px] font-semibold text-foreground">
-                    {minutesRemaining}m
+                    {smart?.estimatedWaitMinutes ?? minutesRemaining}m
                   </p>
                 </div>
               </div>

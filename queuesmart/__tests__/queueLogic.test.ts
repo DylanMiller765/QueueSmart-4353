@@ -1,5 +1,6 @@
 import {
   estimateWaitTime,
+  estimateSmartWaitTime,
   buildNotificationMessage,
   createHistoryEntry,
   updateHistoryEntry,
@@ -7,6 +8,7 @@ import {
   validateHistoryInput,
   ValidationError,
 } from "../src/lib/queue-logic";
+import { QueueHistory } from "../src/types";
 
 // ─── Wait Time Tests ────────────────────────────────────────────────────────
 describe("estimateWaitTime", () => {
@@ -28,6 +30,104 @@ describe("estimateWaitTime", () => {
 
   it("calculates correctly for short duration", () => {
     expect(estimateWaitTime(2, 5)).toBe(10);
+  });
+});
+
+// ─── Smart Wait Time Tests ──────────────────────────────────────────────────
+describe("estimateSmartWaitTime", () => {
+  const makeEntry = (
+    serviceName: string,
+    waitTime: number,
+    status: QueueHistory["status"] = "completed"
+  ): QueueHistory => ({
+    id: Math.random().toString(),
+    serviceName,
+    date: "2026-04-01",
+    status,
+    waitTime,
+  });
+
+  it("falls back to default when history is empty", () => {
+    const result = estimateSmartWaitTime(3, "General Consultation", [], 10);
+    expect(result.basedOn).toBe("default");
+    expect(result.sampleSize).toBe(0);
+    expect(result.confidence).toBe("low");
+    expect(result.estimatedWaitMinutes).toBe(30);
+  });
+
+  it("falls back when no completed entries match the service", () => {
+    const history = [makeEntry("Other Service", 20)];
+    const result = estimateSmartWaitTime(2, "General Consultation", history, 5);
+    expect(result.basedOn).toBe("default");
+    expect(result.estimatedWaitMinutes).toBe(10);
+  });
+
+  it("ignores cancelled and no-show entries", () => {
+    const history = [
+      makeEntry("General Consultation", 100, "cancelled"),
+      makeEntry("General Consultation", 200, "no-show"),
+    ];
+    const result = estimateSmartWaitTime(2, "General Consultation", history, 5);
+    expect(result.basedOn).toBe("default");
+    expect(result.sampleSize).toBe(0);
+  });
+
+  it("ignores entries with waitTime of 0", () => {
+    const history = [makeEntry("General Consultation", 0)];
+    const result = estimateSmartWaitTime(2, "General Consultation", history, 5);
+    expect(result.basedOn).toBe("default");
+  });
+
+  it("uses history average when available", () => {
+    const history = [
+      makeEntry("General Consultation", 10),
+      makeEntry("General Consultation", 20),
+    ];
+    const result = estimateSmartWaitTime(3, "General Consultation", history, 5);
+    expect(result.basedOn).toBe("history");
+    expect(result.averagePerPerson).toBe(15);
+    expect(result.estimatedWaitMinutes).toBe(45);
+  });
+
+  it("returns low confidence for 1-2 samples", () => {
+    const history = [
+      makeEntry("Technical Support", 10),
+      makeEntry("Technical Support", 12),
+    ];
+    const result = estimateSmartWaitTime(1, "Technical Support", history, 5);
+    expect(result.confidence).toBe("low");
+    expect(result.sampleSize).toBe(2);
+  });
+
+  it("returns medium confidence for 3-9 samples", () => {
+    const history = Array.from({ length: 5 }, () =>
+      makeEntry("Account Services", 8)
+    );
+    const result = estimateSmartWaitTime(2, "Account Services", history, 5);
+    expect(result.confidence).toBe("medium");
+    expect(result.sampleSize).toBe(5);
+  });
+
+  it("returns high confidence for 10+ samples", () => {
+    const history = Array.from({ length: 12 }, () =>
+      makeEntry("Document Processing", 25)
+    );
+    const result = estimateSmartWaitTime(4, "Document Processing", history, 5);
+    expect(result.confidence).toBe("high");
+    expect(result.sampleSize).toBe(12);
+    expect(result.estimatedWaitMinutes).toBe(100);
+  });
+
+  it("filters by service name correctly", () => {
+    const history = [
+      makeEntry("General Consultation", 10),
+      makeEntry("Technical Support", 30),
+      makeEntry("General Consultation", 14),
+    ];
+    const result = estimateSmartWaitTime(2, "General Consultation", history, 5);
+    expect(result.sampleSize).toBe(2);
+    expect(result.averagePerPerson).toBe(12);
+    expect(result.estimatedWaitMinutes).toBe(24);
   });
 });
 
