@@ -18,6 +18,84 @@ interface Stats {
   generated_at: string;
 }
 
+interface UserHistory {
+  user_id: string;
+  total_visits: number;
+  completed: number;
+  cancelled: number;
+  avg_wait_minutes: number;
+  services: string[];
+  last_visit: string;
+}
+
+function UserHistorySection() {
+  const [users, setUsers] = useState<UserHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/reports/history")
+      .then((res) => res.json())
+      .then((data) => {
+        setUsers(data.users ?? []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  function downloadHistoryCSV() {
+    window.location.href = "/api/admin/reports/history/csv";
+  }
+
+  return (
+    <div className="bg-white border rounded-xl p-6 mt-6">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold">User Queue Participation History</h2>
+        <button
+          onClick={downloadHistoryCSV}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full text-sm font-medium"
+        >
+          Download History CSV
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading user history...</p>
+      ) : users.length === 0 ? (
+        <p className="text-sm text-gray-500">No user history available yet.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-gray-500 uppercase text-xs">
+              <th className="pb-2">User ID</th>
+              <th className="pb-2 text-right">Total Visits</th>
+              <th className="pb-2 text-right">Completed</th>
+              <th className="pb-2 text-right">Cancelled</th>
+              <th className="pb-2 text-right">Avg Wait (min)</th>
+              <th className="pb-2">Services Used</th>
+              <th className="pb-2">Last Visit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.user_id} className="border-b last:border-0">
+                <td className="py-3 font-mono text-xs">{u.user_id.slice(0, 8)}...</td>
+                <td className="py-3 text-right">{u.total_visits}</td>
+                <td className="py-3 text-right text-green-600">{u.completed}</td>
+                <td className="py-3 text-right text-red-500">{u.cancelled}</td>
+                <td className="py-3 text-right">{u.avg_wait_minutes}</td>
+                <td className="py-3 text-xs text-gray-500">{u.services.join(", ")}</td>
+                <td className="py-3 text-xs text-gray-500">
+                  {new Date(u.last_visit).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +119,6 @@ export default function ReportsPage() {
   }, []);
 
   function downloadCSV() {
-    // just hits the csv endpoint, browser handles the download
     window.location.href = "/api/admin/reports/csv";
   }
 
@@ -154,6 +231,9 @@ export default function ReportsPage() {
           </table>
         )}
       </div>
+
+      {/* User Participation History */}
+      <UserHistorySection />
 
       <p className="text-xs text-gray-400 mt-6">
         Last updated: {new Date(stats.generated_at).toLocaleString()}
