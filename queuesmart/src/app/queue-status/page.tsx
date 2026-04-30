@@ -34,9 +34,31 @@ export default function QueueStatusPage() {
       .catch(() => {});
   }, []);
 
-  function handleLeaveQueue() {
-    setBanner(`You left the queue for ${serviceName}.`);
-    setTimeout(() => router.push("/user/join-queue"), 450);
+ async function handleLeaveQueue() {
+    const userRaw = localStorage.getItem("queuesmart_user");
+    if (!userRaw) {
+      router.push("/login");
+      return;
+    }
+    const user = JSON.parse(userRaw);
+
+    try {
+      const res = await fetch("/api/queue/leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (res.ok) {
+        setBanner(`You left the queue for ${serviceName}.`);
+        setTimeout(() => router.push("/join-queue"), 450);
+      } else {
+        const data = await res.json();
+        setBanner(`Couldn't leave queue: ${data.message ?? "error"}`);
+      }
+    } catch {
+      setBanner("Something went wrong. Try again.");
+    }
   }
 
   return (

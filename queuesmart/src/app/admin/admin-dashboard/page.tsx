@@ -3,27 +3,57 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChevronRight, Bell } from "lucide-react";
 
-const initialServices = [
-  { id: 1, name: "Customer Support", queueLength: 7, duration: 15, priority: "high", open: true },
-  { id: 2, name: "Technical Assistance", queueLength: 3, duration: 30, priority: "medium", open: true },
-  { id: 3, name: "Billing Inquiry", queueLength: 12, duration: 10, priority: "low", open: true },
-  { id: 4, name: "Account Management", queueLength: 0, duration: 20, priority: "medium", open: false },
-];
-
-export default function AdminDashboard() {
-  const [services, setServices] = useState(initialServices);
+type DashboardService = {
+  id: number;
+  name: string;
+  queueLength: number;
+  duration: number;
+  priority: string;
+  open: boolean;
+};
+  export default function AdminDashboard() {
+  const [services, setServices] = useState<DashboardService[]>([]);
   const [waitTimes, setWaitTimes] = useState<Record<number, number>>({});
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string }[]>([]);
   const [history, setHistory] = useState<{ id: string; serviceName: string; date: string; status: string; waitTime: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+
+
+useEffect(() => {
     async function fetchData() {
       try {
-        // Fetch wait times for each service
+        // load real services from db
+        const svcRes = await fetch("/api/services");
+        const svcData = await svcRes.json();
+        const rawServices = svcData.data ?? [];
+
+        // for each service, count active queue entries
+        const dashServices: DashboardService[] = await Promise.all(
+          rawServices.map(async (s: { service_id: number; service_name: string; expected_duration: number; priority_level: number; is_active: boolean }) => {
+            const entriesRes = await fetch(`/api/queue/entries?service_id=${s.service_id}`);
+            const entriesData = await entriesRes.json();
+            const queueLength = entriesData.entries?.length ?? 0;
+
+            const priority =
+              s.priority_level >= 3 ? "high" : s.priority_level === 2 ? "medium" : "low";
+
+            return {
+              id: s.service_id,
+              name: s.service_name,
+              queueLength,
+              duration: s.expected_duration ?? 15,
+              priority,
+              open: s.is_active,
+            };
+          })
+        );
+        setServices(dashServices);
+
+        // wait times for each service
         const waitTimeResults: Record<number, number> = {};
         await Promise.all(
-          initialServices.map(async (s) => {
+          dashServices.map(async (s) => {
             const res = await fetch(`/api/wait-time?position=${s.queueLength}&duration=${s.duration}`);
             const data = await res.json();
             waitTimeResults[s.id] = data.estimatedWaitMinutes;
@@ -31,16 +61,15 @@ export default function AdminDashboard() {
         );
         setWaitTimes(waitTimeResults);
 
-        // Fetch notifications
+        // notifications
         const notifRes = await fetch("/api/notifications?userId=admin");
         const notifData = await notifRes.json();
         setNotifications(notifData.notifications ?? []);
 
-        // Fetch history
+        // history
         const histRes = await fetch("/api/history?userId=admin");
         const histData = await histRes.json();
         setHistory(histData.history ?? []);
-
       } catch (err) {
         console.error("Failed to fetch data:", err);
       } finally {
@@ -50,6 +79,8 @@ export default function AdminDashboard() {
 
     fetchData();
   }, []);
+
+
 
   const toggleQueue = (id: number) => {
     setServices(services.map(s => s.id === id ? { ...s, open: !s.open } : s));
