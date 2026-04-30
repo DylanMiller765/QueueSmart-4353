@@ -1,4 +1,4 @@
-import { getServiceSupabase } from "@/lib/supabase";
+import { getServiceSupabase } from "../../../../../../lib/supabase";
 
 function csvField(val: string | number | null | undefined): string {
   if (val === null || val === undefined) return "";
