@@ -1,47 +1,40 @@
-import { queue } from "@/lib/store";
+import { joinQueue, getActiveEntriesByService } from "@/lib/queueStore";
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { userId, serviceId, priority } = body;
+  const { userId, serviceId, serviceName } = body;
 
-  if (!userId || !serviceId) {
+  if (!userId || !serviceId || !serviceName) {
     return Response.json(
-      { message: "userId and serviceId are required" },
+      { message: "userId, serviceId, and serviceName are required" },
       { status: 400 }
     );
   }
 
-  const alreadyInQueue = queue.find((entry) => entry.userId === userId);
+  // check if they're already in this queue
+  const active = await getActiveEntriesByService(Number(serviceId));
+  const alreadyIn = active.find((e) => e.user_id === userId);
 
-  if (alreadyInQueue) {
+  if (alreadyIn) {
     return Response.json(
       { message: "User is already in the queue" },
       { status: 400 }
     );
   }
 
-  const newEntry = {
-    id: queue.length + 1,
-    userId,
-    serviceId,
-    priority: priority ?? 1,
-    timeJoined: Date.now(),
-  };
+  try {
+    const entry = await joinQueue({
+      user_id: userId,
+      service_id: Number(serviceId),
+      service_name: serviceName,
+    });
 
-  queue.push(newEntry);
-
-  queue.sort((a, b) => {
-    if (b.priority !== a.priority) {
-      return b.priority - a.priority;
-    }
-    return a.timeJoined - b.timeJoined;
-  });
-
-  return Response.json(
-    {
-      message: "User joined the queue successfully",
-      queue,
-    },
-    { status: 201 }
-  );
+    return Response.json(
+      { message: "User joined the queue successfully", entry },
+      { status: 201 }
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to join queue";
+    return Response.json({ message: msg }, { status: 500 });
+  }
 }

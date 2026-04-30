@@ -1,4 +1,4 @@
-import { queue } from "@/lib/store";
+import { leaveQueue, getEntriesByUser } from "@/lib/queueStore";
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -11,23 +11,30 @@ export async function POST(req: Request) {
     );
   }
 
-  const index = queue.findIndex((entry) => entry.userId === userId);
+  // find their active entry (waiting or serving)
+  const userEntries = await getEntriesByUser(userId);
+  const activeEntry = userEntries.find(
+    (e) => e.status === "waiting" || e.status === "serving"
+  );
 
-  if (index === -1) {
+  if (!activeEntry) {
     return Response.json(
       { message: "User not found in queue" },
       { status: 404 }
     );
   }
 
-  const removedUser = queue.splice(index, 1)[0];
+  const removed = await leaveQueue(activeEntry.id);
+
+  if (!removed) {
+    return Response.json(
+      { message: "Failed to leave queue" },
+      { status: 500 }
+    );
+  }
 
   return Response.json(
-    {
-      message: "User left the queue successfully",
-      removedUser,
-      queue,
-    },
+    { message: "User left the queue successfully", removedUser: removed },
     { status: 200 }
   );
 }

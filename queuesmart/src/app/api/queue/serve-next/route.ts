@@ -1,21 +1,27 @@
-import { queue } from "@/lib/store";
+import { serveNext } from "@/lib/queueStore";
 
-export async function POST() {
-  if (queue.length === 0) {
+export async function POST(req: Request) {
+  const body = await req.json();
+  const { serviceId } = body;
+
+  if (!serviceId) {
+    return Response.json(
+      { message: "serviceId is required" },
+      { status: 400 }
+    );
+  }
+
+  const served = await serveNext(Number(serviceId));
+
+  if (!served) {
     return Response.json(
       { message: "Queue is empty" },
       { status: 404 }
     );
   }
 
-  const servedUser = queue.shift();
-
   return Response.json(
-    {
-      message: "Next user served successfully",
-      servedUser,
-      queue,
-    },
+    { message: "Next user served successfully", servedUser: served },
     { status: 200 }
   );
 }
