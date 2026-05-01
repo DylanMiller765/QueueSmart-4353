@@ -1,22 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Notification } from "@/types";
-import { buildNotificationMessage, validateNotificationInput, seedNotifications } from "@/lib/queue-logic";
-
-const notificationStore: Notification[] = [...seedNotifications];
-let nextId = notificationStore.length + 1;
+import { getServiceSupabase } from "@/lib/supabase";
+import { buildNotificationMessage, validateNotificationInput } from "@/lib/queue-logic";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
 
   if (!userId || !userId.trim()) {
-    return NextResponse.json(
-      { error: "userId is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "userId is required" }, { status: 400 });
   }
 
-  return NextResponse.json({ notifications: notificationStore });
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ notifications: data });
 }
 
 export async function POST(req: NextRequest) {
@@ -28,23 +33,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ errors }, { status: 400 });
   }
 
-  const { title, message, notifType } = buildNotificationMessage(
-    type,
-    serviceName,
-    position
-  );
+  const { title, message, notifType } = buildNotificationMessage(type, serviceName, position);
 
-  const notification: Notification = {
-    id: `nl${nextId++}`,
-    title,
-    message,
-    type: notifType,
-    read: false,
-    createdAt: new Date().toISOString(),
-  };
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("notifications")
+    .insert({
+      user_id: userId,
+      title,
+      message,
+      type: notifType,
+      status: "unread",
+    })
+    .select()
+    .single();
 
-  notificationStore.push(notification);
-  console.log(`[NOTIFICATION] ${notification.createdAt} — ${message}`);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-  return NextResponse.json({ success: true, notification }, { status: 201 });
+  console.log(`[NOTIFICATION] ${data.created_at} — ${message}`);
+  return NextResponse.json({ success: true, notification: data }, { status: 201 });
 }

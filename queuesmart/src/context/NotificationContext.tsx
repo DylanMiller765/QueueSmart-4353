@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 
 export type NotificationType = "queue_update" | "status_change" | "info";
 
@@ -9,7 +9,7 @@ export interface Notification {
   type: NotificationType;
   title: string;
   message: string;
-  time: string; // e.g. "Just now", "1h ago"
+  time: string;
   read: boolean;
 }
 
@@ -32,36 +32,70 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | null>(null);
 
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    type: "queue_update",
-    title: "Queue Update",
-    message: "You moved up to position #3 in Technical Support.",
-    time: "10h ago",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "status_change",
-    title: "Almost Your Turn",
-    message: "You are next in line for General Consultation!",
-    time: "1h ago",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "info",
-    title: "Service Complete",
-    message: "Your Account Services appointment has been completed.",
-    time: "Yesterday",
-    read: true,
-  },
-];
+function formatTime(timestamp: string): string {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return "Yesterday";
+}
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get logged-in user from /api/auth/me
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) return;
+        const data = await res.json();
+        setUserId(data.user?.id ?? null);
+      } catch {
+        console.error("Failed to fetch current user");
+      }
+    }
+    fetchUser();
+  }, []);
+
+  // Fetch real notifications from Supabase once we have userId
+  useEffect(() => {
+    if (!userId) return;
+
+    async function fetchNotifications() {
+      try {
+        const res = await fetch(`/api/notifications?userId=${userId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const mapped: Notification[] = (data.notifications ?? []).map((n: {
+          id: string;
+          type: string;
+          title: string;
+          message: string;
+          status: string;
+          created_at: string;
+        }) => ({
+          id: n.id,
+          type: (n.type as NotificationType) ?? "info",
+          title: n.title ?? "Notification",
+          message: n.message,
+          time: formatTime(n.created_at),
+          read: n.status === "viewed",
+        }));
+
+        setNotifications(mapped);
+      } catch (err) {
+        console.error("Failed to fetch notifications:", err);
+      }
+    }
+
+    fetchNotifications();
+  }, [userId]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -70,17 +104,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const newNotif: Notification = { ...n, id, read: false };
     setNotifications((prev) => [newNotif, ...prev]);
 
-    // Also show a toast
     const toast: Toast = { id, title: n.title, message: n.message, type: n.type };
     setToasts((prev) => [...prev, toast]);
 
-    // Auto-dismiss toast after 4 seconds
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   }, []);
 
-  const markRead = useCallback((id: string) => {
+  const markRead = useCallback(async (id: string) => {
+    await fetch(`/api/notifications/${id}`, { method: "PATCH" });
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );

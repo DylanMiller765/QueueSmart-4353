@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServiceSupabase } from "@/lib/supabase";
 
-// In-memory reference to the same store in route.ts
-// We patch the notification's read status here
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params;
+  const { id } = params;
+
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
-  // Status is managed in the parent route store
-  // This endpoint signals a notification was viewed
-  return NextResponse.json({ success: true, id, status: "viewed" });
+
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("notifications")
+    .update({ status: "viewed" })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, notification: data });
 }
