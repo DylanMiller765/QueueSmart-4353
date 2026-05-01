@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 
 interface PerService {
@@ -18,6 +17,21 @@ interface Stats {
   generated_at: string;
 }
 
+interface ServiceActivity {
+  service_id: number;
+  service_name: string;
+  description: string;
+  expected_duration: number;
+  priority_level: string;
+  is_active: boolean;
+  total_visits: number;
+  completed: number;
+  currently_waiting: number;
+  cancelled: number;
+  no_show: number;
+  avg_wait_minutes: number;
+}
+
 interface UserHistory {
   user_id: string;
   total_visits: number;
@@ -26,6 +40,72 @@ interface UserHistory {
   avg_wait_minutes: number;
   services: string[];
   last_visit: string;
+}
+
+function ServiceActivitySection() {
+  const [services, setServices] = useState<ServiceActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/reports/services")
+      .then((res) => res.json())
+      .then((data) => {
+        setServices(data.services ?? []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="bg-white border rounded-xl p-6 mt-6">
+      <h2 className="text-lg font-semibold mb-4">Service Details & Queue Activity</h2>
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading service activity...</p>
+      ) : services.length === 0 ? (
+        <p className="text-sm text-gray-500">No services found.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-gray-500 uppercase text-xs">
+              <th className="pb-2">Service</th>
+              <th className="pb-2">Priority</th>
+              <th className="pb-2">Duration</th>
+              <th className="pb-2 text-right">Waiting Now</th>
+              <th className="pb-2 text-right">Completed</th>
+              <th className="pb-2 text-right">Cancelled</th>
+              <th className="pb-2 text-right">Avg Wait</th>
+              <th className="pb-2 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {services.map((s) => (
+              <tr key={s.service_id} className="border-b last:border-0">
+                <td className="py-3">
+                  <p className="font-medium">{s.service_name}</p>
+                  <p className="text-xs text-gray-400">{s.description}</p>
+                </td>
+                <td className="py-3 capitalize">{s.priority_level}</td>
+                <td className="py-3">{s.expected_duration} min</td>
+                <td className="py-3 text-right font-semibold">{s.currently_waiting}</td>
+                <td className="py-3 text-right text-green-600">{s.completed}</td>
+                <td className="py-3 text-right text-red-500">{s.cancelled}</td>
+                <td className="py-3 text-right">{s.avg_wait_minutes} min</td>
+                <td className="py-3 text-center">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    s.is_active
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {s.is_active ? "Active" : "Inactive"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
 }
 
 function UserHistorySection() {
@@ -57,7 +137,6 @@ function UserHistorySection() {
           Download History CSV
         </button>
       </div>
-
       {loading ? (
         <p className="text-sm text-gray-500">Loading user history...</p>
       ) : users.length === 0 ? (
@@ -231,6 +310,9 @@ export default function ReportsPage() {
           </table>
         )}
       </div>
+
+      {/* Service Details & Queue Activity */}
+      <ServiceActivitySection />
 
       {/* User Participation History */}
       <UserHistorySection />
