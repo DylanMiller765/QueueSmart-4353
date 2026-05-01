@@ -1,15 +1,20 @@
-import { getAllEntries } from "@/lib/queueStore";
+import { getServiceSupabase } from "@/lib/supabase";
 
 export async function GET() {
   try {
-    const entries = await getAllEntries();
+    const supabase = getServiceSupabase();
 
-    // only people who actually got served count toward stats
+    const { data, error } = await supabase
+      .from("queue_entries")
+      .select("service_name, status, wait_time_minutes, joined_at");
+
+    if (error) throw new Error(error.message);
+
+    const entries = data ?? [];
+
     const completed = entries.filter((e) => e.status === "completed");
-
     const totalUsersServed = completed.length;
 
-    // avg wait across everyone served
     const totalWait = completed.reduce(
       (sum, e) => sum + (e.wait_time_minutes ?? 0),
       0
@@ -17,8 +22,11 @@ export async function GET() {
     const avgWaitTime =
       totalUsersServed > 0 ? Math.round(totalWait / totalUsersServed) : 0;
 
-    // per service breakdown
-    const byService: Record<string, { service_name: string; users_served: number; avg_wait_time: number }> = {};
+    const byService: Record<string, {
+      service_name: string;
+      users_served: number;
+      avg_wait_time: number;
+    }> = {};
 
     for (const entry of completed) {
       const key = entry.service_name;
@@ -33,13 +41,11 @@ export async function GET() {
       byService[key].avg_wait_time += entry.wait_time_minutes ?? 0;
     }
 
-    // turn the running totals into actual averages
     const perService = Object.values(byService).map((s) => ({
       ...s,
       avg_wait_time: Math.round(s.avg_wait_time / s.users_served),
     }));
 
-    // also include cancelled + no-show counts for context
     const cancelled = entries.filter((e) => e.status === "cancelled").length;
     const noShow = entries.filter((e) => e.status === "no-show").length;
     const stillWaiting = entries.filter(
