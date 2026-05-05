@@ -13,28 +13,56 @@ interface SmartEstimate {
   averagePerPerson: number;
 }
 
+interface QueueEntry {
+  id: string;
+  service_name: string;
+  position: number;
+  status: string;
+}
+
 export default function QueueStatusPage() {
   const router = useRouter();
 
-  // just mock values for A2
-  const position = 3;
-  const serviceName = "General Consultation";
+  const [entry, setEntry] = useState<QueueEntry | null>(null);
+  const [smart, setSmart] = useState<SmartEstimate | null>(null);
+  const [banner, setBanner] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const serviceName = entry?.service_name ?? "—";
+  const position = entry?.position ?? 0;
   const defaultDuration = 5;
   const minutesRemaining = position * defaultDuration;
 
-  const [status, setStatus] = useState<"Waiting" | "Almost ready">("Waiting");
-  const [banner, setBanner] = useState("");
-  const [smart, setSmart] = useState<SmartEstimate | null>(null);
-
   useEffect(() => {
-    const url = `/api/wait-time/smart?position=${position}&serviceName=${encodeURIComponent(serviceName)}&duration=${defaultDuration}`;
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => data && setSmart(data))
-      .catch(() => {});
-  }, []);
+    const userRaw = localStorage.getItem("queuesmart_user");
+    if (!userRaw) {
+      router.push("/login");
+      return;
+    }
+    const user = JSON.parse(userRaw);
 
- async function handleLeaveQueue() {
+    fetch(`/api/queue/my-entry?userId=${user.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.entry) {
+          setBanner("You're not in a queue right now.");
+          setLoading(false);
+          return;
+        }
+        setEntry(data.entry);
+
+        // fetch smart estimate for their actual service + position
+        const url = `/api/wait-time/smart?position=${data.entry.position}&serviceName=${encodeURIComponent(data.entry.service_name)}&duration=${defaultDuration}`;
+        return fetch(url).then((r) => (r.ok ? r.json() : null));
+      })
+      .then((smartData) => {
+        if (smartData) setSmart(smartData);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [router]);
+
+  async function handleLeaveQueue() {
     const userRaw = localStorage.getItem("queuesmart_user");
     if (!userRaw) {
       router.push("/login");
@@ -60,6 +88,11 @@ export default function QueueStatusPage() {
       setBanner("Something went wrong. Try again.");
     }
   }
+
+  const status = entry?.status === "serving" ? "Almost ready" : "Waiting";
+  const progressPercent = entry
+    ? Math.min(95, Math.max(10, 100 - position * 15))
+    : 0;
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -120,10 +153,13 @@ export default function QueueStatusPage() {
 
         {banner && (
           <div className="mt-6 rounded-2xl border border-[#e5e5ea] bg-white px-5 py-3 text-[14px] text-foreground">
-            ✅ {banner}
+            {banner}
           </div>
         )}
 
+        {loading ? (
+          <div className="mt-8 text-center text-[14px] text-muted">Loading...</div>
+        ) : entry ? (
         <div className="mt-8 rounded-3xl border border-[#e5e5ea] bg-white p-8 shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
           <div className="flex flex-col gap-10 md:flex-row md:items-center md:justify-between">
             <div>
@@ -166,7 +202,7 @@ export default function QueueStatusPage() {
               <div className="mt-6 h-[6px] w-full max-w-[340px] rounded-full bg-[#e5e5ea]">
                 <div
                   className="h-[6px] rounded-full bg-accent"
-                  style={{ width: "55%" }}
+                  style={{ width: `${progressPercent}%` }}
                 />
               </div>
 
@@ -177,29 +213,10 @@ export default function QueueStatusPage() {
 
               <div className="mt-7 flex flex-wrap gap-3">
                 <button
-                  disabled
-                  className="rounded-full bg-accent px-6 py-3 text-[14px] font-medium text-white opacity-60 cursor-not-allowed"
-                >
-                  View Details
-                </button>
-
-                <button
                   onClick={handleLeaveQueue}
                   className="rounded-full px-6 py-3 text-[14px] font-medium text-accent hover:underline"
                 >
                   Leave Queue
-                </button>
-
-                {/* just to demo status changes */}
-                <button
-                  onClick={() =>
-                    setStatus((prev) =>
-                      prev === "Waiting" ? "Almost ready" : "Waiting"
-                    )
-                  }
-                  className="rounded-full border border-[#e5e5ea] bg-white px-6 py-3 text-[14px] font-medium text-foreground hover:bg-[#f5f5f7]"
-                >
-                  Simulate Status
                 </button>
               </div>
             </div>
@@ -220,10 +237,17 @@ export default function QueueStatusPage() {
             </div>
           </div>
         </div>
-
-        <p className="mt-10 text-center text-[12px] leading-relaxed text-muted/60">
-          Demo — queue position and status are mocked for Assignment 2.
-        </p>
+        ) : (
+          <div className="mt-8 rounded-3xl border border-[#e5e5ea] bg-white p-8 text-center">
+            <p className="text-[15px] text-muted">You&apos;re not in a queue right now.</p>
+            <Link
+              href="/join-queue"
+              className="mt-4 inline-block rounded-full bg-accent px-6 py-3 text-[14px] font-medium text-white"
+            >
+              Join a Queue
+            </Link>
+          </div>
+        )}
       </div>
       </div>
     </div>
